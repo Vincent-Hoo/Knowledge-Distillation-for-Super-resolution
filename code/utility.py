@@ -15,6 +15,7 @@ import imageio
 import torch
 import torch.optim as optim
 import torch.optim.lr_scheduler as lrs
+from option import args
 
 class timer():
     def __init__(self):
@@ -48,7 +49,7 @@ class checkpoint():
         self.log = torch.Tensor() # 3-dimensional
         now = datetime.datetime.now().strftime('%Y-%m-%d-%H:%M:%S')
         
-        self.dir = os.path.join('.', 'experiment', args.ckp_dir)
+        self.dir = os.path.join('..', 'experiment', args.ckp_dir)
         if args.reset and os.path.exists(self.dir):
             os.system('rm -rf ' + self.dir)
         
@@ -62,7 +63,8 @@ class checkpoint():
             self.log = torch.load(self.get_path('psnr_log.pt'))
             print('Continue from epoch {}...'.format(len(self.log)))
         
-        
+        if args.test_only:
+            self.log = torch.load(self.get_path('psnr_log.pt'))
 
         open_type = 'a' if os.path.exists(self.get_path('log.txt'))else 'w'
         self.log_file = open(self.get_path('log.txt'), open_type)
@@ -195,8 +197,8 @@ def make_optimizer(args, target):
         kwargs_optimizer['eps'] = args.epsilon
 
     # scheduler
-    #milestones = list(map(lambda x: int(x), args.decay.split('-')))
-    milestones=[150, 250]
+    milestones = list(map(lambda x: int(x), args.decay.split('-')))
+    #milestones=[150, 250, 400]
     kwargs_scheduler = {'milestones': milestones, 'gamma': args.gamma}
     scheduler_class = lrs.MultiStepLR
 
@@ -212,8 +214,11 @@ def make_optimizer(args, target):
 
         def load(self, load_path, epoch=1):
             self.load_state_dict(torch.load(os.path.join(load_path, 'optimizer.pt')))
+            self.param_groups[0]["lr"] = args.lr
             if epoch > 1:
-                for _ in range(epoch): self.scheduler.step()
+                for _ in range(epoch): 
+                    self.scheduler.step()
+
 
         def schedule(self):
             self.scheduler.step()

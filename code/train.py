@@ -7,15 +7,21 @@ import torch.nn.functional as F
 import torch.optim as optim
 import data
 from option import args
-import edsr, rdn, rcan
+from models import *
 from loss import *
 import utility
 import math
-from scipy.spatial.distance import cdist
 from feature_transformation import spatial_similarity, channel_similarity, batch_similarity, FSP, AT
 
+
+torch.manual_seed(100)
+torch.cuda.manual_seed(100)
+os.environ['CUDA_VISIBLE_DEVICES']=str(args.gpu_id)
+device = torch.device('cpu' if args.cpu else 'cuda')   
+    
     
 def load_teachers():
+    print("Loading Teacher ====================================>")
     teachers = []
     
     if "EDSR" in args.teacher:
@@ -25,33 +31,61 @@ def load_teachers():
         net = edsr.EDSR(args).to(device)
         if int(args.scale[0]) == 2:
             print("loading EDSRx2")
-            net.load_state_dict(torch.load('../teacher_checkpoint/EDSR_x2.pt'))
+            net.load_state_dict_teacher(torch.load('../teacher_checkpoint/EDSR_BIX2.pt'))
         elif int(args.scale[0]) == 3:
             print("loading EDSRx3")
-            net.load_state_dict(torch.load('../teacher_checkpoint/EDSR_x3.pt'))
+            net.load_state_dict_teacher(torch.load('../teacher_checkpoint/EDSR_BIX3.pt'))
         elif int(args.scale[0]) == 4:
             print("loading EDSRx4")
-            net.load_state_dict(torch.load('../teacher_checkpoint/EDSR_x4.pt'))
+            net.load_state_dict_teacher(torch.load('../teacher_checkpoint/EDSR_BIX4.pt'))
         elif int(args.scale[0]) == 8:
             print("loading EDSRx8")
-            net.load_state_dict(torch.load('../teacher_checkpoint/EDSR_x8.pt'))
+            net.load_state_dict_student(torch.load('../teacher_checkpoint/EDSR_BIX8.pt'))
+        if args.precision == 'half':
+            net.half()
         teachers.append(net)
     
     if "RCAN" in args.teacher:
+        args.n_resblocks = 20
+        args.n_resgroups = 10
         net = rcan.RCAN(args).to(device)
         if int(args.scale[0]) == 2:
             print("loading RCANx2")
-            net.load_state_dict(torch.load('../teacher_checkpoint/RCAN_BIX2.pt'))
+            net.load_state_dict_teacher(torch.load('../teacher_checkpoint/RCAN_BIX2.pt'))
         elif int(args.scale[0]) == 3:
             print("loading RCANx3")
-            net.load_state_dict(torch.load('../teacher_checkpoint/RCAN_BIX3.pt'))
+            net.load_state_dict_teacher(torch.load('../teacher_checkpoint/RCAN_BIX3.pt'))
         elif int(args.scale[0]) == 4:
             print("loading RCANx4")
-            net.load_state_dict(torch.load('../teacher_checkpoint/RCAN_BIX4.pt'))
+            net.load_state_dict_teacher(torch.load('../teacher_checkpoint/RCAN_BIX4.pt'))
         elif int(args.scale[0]) == 8:
             print("loading RCANx8")
-            net.load_state_dict(torch.load('../teacher_checkpoint/RCAN_BIX8.pt'))
+            net.load_state_dict_teacher(torch.load('../teacher_checkpoint/RCAN_BIX8.pt'))
+        if args.precision == 'half':
+            net.half()
         teachers.append(net)
+    
+    if "SAN" in args.teacher:
+        args.n_resblocks = 10
+        args.n_resgroups = 20
+        args.n_feats = 64
+        net = san.SAN(args).to(device)
+        if int(args.scale[0]) == 2:
+            print("loading SANx2")
+            net.load_state_dict_teacher(torch.load('../teacher_checkpoint/SAN_BIX2.pt'))
+        elif int(args.scale[0]) == 3:
+            print("loading SANx3")
+            net.load_state_dict_teacher(torch.load('../teacher_checkpoint/SAN_BIX3.pt'))
+        elif int(args.scale[0]) == 4:
+            print("loading SANx4")
+            net.load_state_dict_teacher(torch.load('../teacher_checkpoint/SAN_BIX4.pt'))
+        elif int(args.scale[0]) == 8:
+            print("loading SANx8")
+            net.load_state_dict_teacher(torch.load('../teacher_checkpoint/SAN_BIX8.pt'))
+        if args.precision == 'half':
+            net.half()
+        teachers.append(net)
+    
     
     for teacher in teachers:
         for p in teacher.parameters():
@@ -61,6 +95,7 @@ def load_teachers():
     
     
 def create_student_model():
+    print("Preparing Student ===================================>")
     student_checkpoint = utility.checkpoint(args)
     if args.model == 'EDSR':
         args.n_resblocks = 16
@@ -68,8 +103,14 @@ def create_student_model():
         args.res_scale = 1.0
         student = edsr.EDSR(args).to(device)
     elif args.model == 'RCAN':
-        args.n_resblocks = args.student_n_resblocks
+        args.n_resblocks = 6
+        args.n_resgroups = 10
         student = rcan.RCAN(args).to(device)
+    elif args.model == 'SAN':
+        args.n_resblocks = 10
+        args.n_resgroups = 6
+        args.n_feats = 64
+        student = san.SAN(args).to(device)
     elif args.model == 'RDN':
         student = rdn.RDN(args).to(device)
     
@@ -119,7 +160,7 @@ def train(epoch):
     )
     
     timer_data, timer_model = utility.timer(), utility.timer()
-    for batch, (lr, hr, a, idx_scale) in enumerate(train_loader):
+    for batch, (lr, hr, _, idx_scale) in enumerate(train_loader):
         
         lr, hr = prepare(lr, hr)
         timer_data.hold()
@@ -153,6 +194,9 @@ def train(epoch):
             if 'AT' in args.feature_distilation_type:
                 aggregated_student_fms.append([AT(fm) for fm in student_fms])
                 aggregated_teacher_fms.append([AT(fm) for fm in teacher_fms])
+            if 'fitnet' in args.feature_distilation_type:
+                aggregated_student_fms.append([fm for fm in student_fms])
+                aggregated_teacher_fms.append([fm for fm in teacher_fms])
         
         total_loss = criterion(student_sr, teacher_sr, hr, aggregated_student_fms, aggregated_teacher_fms)
             
@@ -160,8 +204,6 @@ def train(epoch):
         optimizer.step()
 
 
-                       
-        
         timer_model.hold()
         
         if (batch) % args.print_every == 0:
@@ -172,12 +214,10 @@ def train(epoch):
                         timer_model.release(),
                         timer_data.release()))
 
-        timer_data.tic()
-        
-        
-        
+        timer_data.tic()    
     
     criterion.end_log(len(train_loader))
+
 
 def test(epoch):
     student.eval()
@@ -190,6 +230,7 @@ def test(epoch):
         
         timer_test = utility.timer()
         
+
         for idx_data, d in enumerate(test_loader):
             for idx_scale, scale in enumerate(args.scale):
                 d.dataset.set_scale(idx_scale)
@@ -223,10 +264,10 @@ def test(epoch):
         if args.save_results:
             student_ckp.end_background()
 
-        if not args.test_only:
-            save(is_best=(best[1][0, 0] + 1 == epoch), epoch=epoch)
+        save(is_best=(best[1][0, 0] + 1 == epoch), epoch=epoch)
 
         student_ckp.write_log('Total: {:.2f}s\n'.format(timer_test.toc()), refresh=True)
+
 
 def save(is_best, epoch):
     save_root_path = student_ckp.dir
@@ -253,45 +294,71 @@ def save(is_best, epoch):
 
 
 
+def print_args():
+    msg = ""
+    msg += "Model settings\n"
+    msg += "Teachers: %s\n" % args.teacher
+    msg += "Student: %s\n" % args.model
+
+    msg += "\n"
+    
+    msg += "Data Settings\n"
+    msg += "RGB range: %d\n" % args.rgb_range
+    msg += "Scale: %d\n" % args.scale[0]
+    size = args.patch_size / args.scale[0]
+    msg += "Input Image Size: (%d, %d, 3)\n" % (size, size)
+    msg += "Output Image Size: (%d, %d, 3)\n" % (args.patch_size, args.patch_size)
+    msg += "\n"
+    
+    msg += "Training Settings\n"
+    msg += "Epochs: %d\n" % args.epochs
+    msg += "Learning rate: %f\n" % args.lr
+    msg += "Learning rate decay: %s\n" % args.decay
+    msg += "\n"
+    
+    msg += "Distillation Settings\n"
+    if args.alpha == 0 and args.feature_loss_used == 0:
+        msg += "No distilation\n"
+    else:
+        msg += "Distillation type: \n"
+        if args.alpha != 0:
+            msg += "\tteacher supervision\n"
+        if args.feature_loss_used == 1:
+            msg += "\tfeature distillation\n"
+            msg += "\t\ttype: %s\n" % args.feature_distilation_type.split("*")[1]
+            msg += "\t\tposition: %s\n" % args.features
+        
+    msg += "\n\n"    
+    
+    return msg
 
 
+if __name__ == "__main__":
+    msg = print_args()
 
-loader = data.Data(args)
+    print("Preparing Data ====================================>")
+    loader = data.Data(args)
+    train_loader = loader.loader_train
+    test_loader = loader.loader_test
 
-train_loader = loader.loader_train
-test_loader = loader.loader_test
+    teachers = load_teachers()
+    student_ckp, student = create_student_model()
+    criterion = prepare_criterion()
+    optimizer = prepare_optimizer()
 
+    student_ckp.write_log(msg)
 
-os.environ['CUDA_VISIBLE_DEVICES']=str(args.gpu_id)
-device = torch.device('cpu' if args.cpu else 'cuda')
+    
+    epoch = 1
+    if args.resume == 1:                
+        epoch = len(student_ckp.log) + 1
+    
 
-teachers = load_teachers()
-student_ckp, student = create_student_model()
-
-
-criterion = prepare_criterion()
-optimizer = prepare_optimizer()
-
-
-
-print('teacher(s): ' + args.teacher)
-print('student: ' + args.model)
-
-
-# epoch starts from 1    
-epoch = 1
-
-if args.resume == 1:                
-    epoch = len(student_ckp.log) + 1
-    print(len(student_ckp.log))
-
-if args.test_only:
-    test(epoch)
-else:
-    while epoch < args.epochs:
+    print("Start Training ======================================>") 
+    while epoch < args.epochs + 1:
         print("epoch " + str(epoch))
         train(epoch)
         test(epoch)
         epoch += 1
-
+      
 

@@ -20,66 +20,42 @@ class Loss(nn.modules.loss._Loss):
 
         self.n_GPUs = args.n_GPUs
         self.loss = []
-        self.loss_module = nn.ModuleList()
-        self.label_loss_num = len(args.loss.split('+')) * 2
+        self.feature_loss_module = nn.ModuleList()
         self.feature_loss_used = args.feature_loss_used
         
         # SR loss
-        for loss in args.loss.split('+'):
-            weight, loss_type = loss.split('*')
-            if loss_type == 'MSE':
-                loss_function_srhr = nn.MSELoss()
-                loss_function_srsr = nn.MSELoss()
-            elif loss_type == 'L1':
-                loss_function_srhr = nn.L1Loss()
-                loss_function_srsr = nn.L1Loss()
+        DS_weight = 1 - args.alpha
+        TS_weight = args.alpha
 
-            self.loss.append({
-                'type': loss_type + "srhr",
-                'weight': float(weight),
-                'function': loss_function_srhr}
-            )
-            
-            self.loss.append({
-                'type': loss_type + "srsr",
-                'weight': 1 - float(weight),
-                'function': loss_function_srsr}
-            )
+        self.loss.append({'type': "DS", 'weight': DS_weight, 'function': nn.L1Loss()})
+        self.loss.append({'type': "TS", 'weight': TS_weight, 'function': nn.L1Loss()})
           
-        if args.feature_loss_type == 'L1':
-            feature_loss_type = nn.L1Loss()
-        elif args.feature_loss_type == 'MSE':
-            feature_loss_type = nn.MSELoss()
-        
-        
-        
-        # feature loss  
+
+
+        # feature loss
         if args.feature_loss_used == 1:      
             for loss in args.feature_distilation_type.split('+'):
                 weight, feature_type = loss.split('*')
-                l = {'type': feature_type, 'weight': float(weight), 'function': betweenLoss(eval(args.coef_sloss), loss=feature_loss_type)}
+                l = {'type': feature_type, 'weight': float(weight), 'function': FeatureLoss(loss=nn.L1Loss())}
                 self.loss.append(l)
-                self.loss_module.append(l['function'])
-           
-            #self.loss.append({'type': 'betweenLoss', 'weight': 1, 'function': betweenLoss(eval(args.coef_sloss), loss=feature_loss_type)})        
-        
-        
+                self.feature_loss_module.append(l['function'])
+       
+      
         self.loss.append({'type': 'Total', 'weight': 0, 'function': None})
 
         
         for l in self.loss:
             if l['function'] is not None:
                 print('{:.3f} * {}'.format(l['weight'], l['type']))
-                #self.loss_module.append(l['function'])
         
         
         device = torch.device('cpu' if args.cpu else 'cuda')
         self.log = torch.Tensor()      
-        self.loss_module.to(device)
+        self.feature_loss_module.to(device)
         
         if not args.cpu and args.n_GPUs > 1:
-            self.loss_module = nn.DataParallel(
-                self.loss_module, range(args.n_GPUs)
+            self.feature_loss_module = nn.DataParallel(
+                self.feature_loss_module, range(args.n_GPUs)
             )
 
         if args.resume == 1: 
@@ -88,32 +64,25 @@ class Loss(nn.modules.loss._Loss):
 
 
     def forward(self, student_sr, teacher_sr, hr, student_fms, teacher_fms):
-        label_loss = 0
-        for i in range(self.label_loss_num):
-            l = self.loss[i]
-            if l['type'].endswith("srhr"):
-                loss = l['function'](student_sr, hr)
-                effective_loss = l['weight'] * loss
-                label_loss += effective_loss
-                self.log[-1, i] += effective_loss.item()
-            elif l['type'].endswith("srsr"):
-                loss = l['function'](student_sr, teacher_sr)
-                effective_loss = l['weight'] * loss
-                label_loss += effective_loss
-                self.log[-1, i] += effective_loss.item()
-
-        loss_sum = label_loss
-
+        # DS Loss
+        DS_loss = self.loss[0]['function'](student_sr, hr) * self.loss[0]['weight']
+        self.log[-1, 0] += DS_loss.item()
+        
+        # TS Loss
+        TS_loss = self.loss[1]['function'](student_sr, teacher_sr) * self.loss[1]['weight']
+        self.log[-1, 1] += TS_loss.item()
+        
+        loss_sum = DS_loss + TS_loss
 
         
         if self.feature_loss_used == 0:
             pass
         elif self.feature_loss_used == 1:
             assert(len(student_fms) == len(teacher_fms))
-            assert(len(student_fms) == len(self.loss_module))
+            assert(len(student_fms) == len(self.feature_loss_module))
             
-            for i in range(len(self.loss_module)):   
-                feature_loss = self.loss_module[i](student_fms[i], teacher_fms[i])
+            for i in range(len(self.feature_loss_module)):   
+                feature_loss = self.feature_loss_module[i](student_fms[i], teacher_fms[i])
                 self.log[-1, 2 + i] += feature_loss.item()
                 loss_sum += feature_loss
   
@@ -156,9 +125,9 @@ class Loss(nn.modules.loss._Loss):
 
     def get_loss_module(self):
         if self.n_GPUs == 1:
-            return self.loss_module
+            return self.feature_loss_module
         else:
-            return self.loss_module.module
+            return self.feature_loss_module.module
 
     def save(self, apath):
         torch.save(self.state_dict(), os.path.join(apath, 'loss.pt'))
@@ -175,7 +144,7 @@ class Loss(nn.modules.loss._Loss):
             **kwargs
         ))
         self.log = torch.load(os.path.join(apath, 'loss_log.pt'))
-        for l in self.loss_module:
+        for l in self.feature_loss_module:
             if hasattr(l, 'scheduler'):
                 for _ in range(len(self.log)): l.scheduler.step()
 
@@ -183,55 +152,18 @@ class Loss(nn.modules.loss._Loss):
 
 
 
-
-
-def CrossEntropy(outputs, targets):
-    log_softmax_outputs = F.log_softmax(outputs, dim=1)
-    softmax_targets = F.softmax(targets, dim=1)
-
-    return -(log_softmax_outputs*softmax_targets).sum(dim=1).mean()
-
-def L1_soft(outputs, targets):
-    softmax_outputs = F.softmax(outputs, dim=1)
-    softmax_targets = F.softmax(targets, dim=1)
-
-    return F.l1_loss(softmax_outputs, softmax_targets)
-
-def L2_soft(outputs, targets):
-    softmax_outputs = F.softmax(outputs, dim=1)
-    softmax_targets = F.softmax(targets, dim=1)
-
-    return F.mse_loss(softmax_outputs, softmax_targets)
-
-
-class betweenLoss(nn.Module):
-    def __init__(self, gamma=[1, 1, 1, 1, 1, 1], loss=nn.L1Loss()):
-        super(betweenLoss, self).__init__()
-        self.gamma = gamma
+class FeatureLoss(nn.Module):
+    def __init__(self, loss=nn.L1Loss()):
+        super(FeatureLoss, self).__init__()
         self.loss = loss
 
     def forward(self, outputs, targets):
         assert len(outputs)
         assert len(outputs) == len(targets)
         length = len(outputs)
-        tmp = [self.gamma[i] * self.loss(outputs[i], targets[i]) for i in range(length)]
-        temp = [i.item() for i in tmp]
-        #print(temp)
-        res = sum(tmp)
-        return res
+        tmp = [self.loss(outputs[i], targets[i]) for i in range(length)]
+        loss = sum(tmp)
+        return loss
 
 
 
-class Weighted_Loss(nn.Module):
-    def __init__(self, loss_type):
-        super(Weighted_Loss, self).__init__()
-        self.loss_type = loss_type
-    
-    def forward(self, outputs, targets, weight):
-        loss_sum = 0
-        for b in range(len(weight)):
-            if self.loss_type == 'MSE':
-                loss_sum += nn.MSELoss()(outputs[b], targets[b]) * weight[b]
-            elif self.loss_type == 'L1':
-                loss_sum += nn.L1Loss()(outputs[b], targets[b]) * weight[b]
-        return loss_sum

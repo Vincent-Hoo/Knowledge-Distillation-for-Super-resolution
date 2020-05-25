@@ -1,6 +1,4 @@
-## ECCV-2018-Image Super-Resolution Using Very Deep Residual Channel Attention Networks
-## https://arxiv.org/abs/1807.02758
-import common
+import models.common as common
 import torch
 import torch.nn as nn
 
@@ -114,7 +112,6 @@ class RCAN(nn.Module):
         for group_id in range(self.n_resgroups):
             res, residual = getattr(self, 'body_group{}'.format(str(group_id)))(res)
             if group_id == 2 or group_id == 6:
-            #if group_id == 8 or group_id == 9:
                 feature_maps.append(res)
         res = self.body_tail(res)
         feature_maps.append(res)
@@ -127,35 +124,12 @@ class RCAN(nn.Module):
 
         return feature_maps, x 
 
-    def load_state_dict_old(self, state_dict, strict=False):
-        own_state = self.state_dict()
-        for name, param in state_dict.items():
-            if name in own_state:
-                if isinstance(param, nn.Parameter):
-                    param = param.data
-                try:
-                    own_state[name].copy_(param)
-                except Exception:
-                    if name.find('tail') >= 0:
-                        print('Replace pre-trained upsampler to new one...')
-                    else:
-                        raise RuntimeError('While copying the parameter named {}, '
-                                           'whose dimensions in the model are {} and '
-                                           'whose dimensions in the checkpoint are {}.'
-                                           .format(name, own_state[name].size(), param.size()))
-            elif strict:
-                if name.find('tail') == -1:
-                    raise KeyError('unexpected key "{}" in state_dict'
-                                   .format(name))
-        
-        if strict:
-            missing = set(own_state.keys()) - set(state_dict.keys())
-            if len(missing) > 0:
-                raise KeyError('missing keys in state_dict: "{}"'.format(missing))
+
                 
-    def load_state_dict(self, state_dict):
+    def load_state_dict_teacher(self, state_dict):
         own_state = self.state_dict()
         for name, param in state_dict.items():
+            old_name = name
             if 'body' in name:
                 a = name.split('.')
                 if int(a[1]) == 10:
@@ -170,7 +144,7 @@ class RCAN(nn.Module):
                     param = param.data
                 own_state[name].copy_(param)
             else:
-                print(name)
+                print(name, old_name)
 
                 
     def load_state_dict_student(self, state_dict):

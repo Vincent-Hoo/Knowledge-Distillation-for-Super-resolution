@@ -11,7 +11,7 @@ parser.add_argument('--n_threads', type=int, default=6, help='number of threads 
 
 
 # Dataset Setting
-parser.add_argument('--dir_data', type=str, default='/data/hezibin/EDSR-PyTorch/data', help='dataset directory')
+parser.add_argument('--dir_data', type=str, default='/data/dataset/dataset/sr_dataset', help='dataset directory')
 parser.add_argument('--data_train', type=str, default='DIV2K', help='train dataset name')
 parser.add_argument('--data_test', type=str, default='Set5+Set14+B100+Urban100', help='test dataset name')
 parser.add_argument('--data_range', type=str, default='1-800/801-810', help='train/test data range')
@@ -35,7 +35,7 @@ parser.add_argument('--save_results', action='store_true', help='save output res
 
 
 # training setting
-parser.add_argument('--epochs', type=int, default=200, help='number of epochs to train')
+parser.add_argument('--epochs', type=int, default=700, help='number of epochs to train')
 parser.add_argument('--batch_size', type=int, default=16, help='input batch size for training')
 parser.add_argument('--resume', type=int, default=0, help='whether resume from the lastest version')
 parser.add_argument('--test_only', action='store_true', help='set this option to test the model')
@@ -47,9 +47,8 @@ parser.add_argument('--template', default='.', help='You can set various templat
 
 
 # loss function and optimizer setting
-parser.add_argument('--loss', type=str, default='1*L1', help='DS and TS loss')
 parser.add_argument('--lr', default=0.0001, type=float, help='learning rate')
-parser.add_argument('--decay', type=str, default='150', help='learning rate decay type')
+parser.add_argument('--decay', type=str, default='150-300-450-600', help='learning rate decay type')
 parser.add_argument('--optimizer', default='ADAM', choices=('SGD', 'ADAM', 'RMSprop'), help='optimizer to use (SGD | ADAM | RMSprop)')
 parser.add_argument('--momentum', type=float, default=0.9, help='SGD momentum')
 parser.add_argument('--betas', type=tuple, default=(0.9, 0.999), help='ADAM beta')
@@ -59,15 +58,15 @@ parser.add_argument('--gamma', type=float, default=0.5, help='learning rate deca
 
 
 # distilation setting
+#parser.add_argument('--loss', type=str, default='1*L1', help='DS and TS loss, 1 for DS')
+parser.add_argument('--alpha', type=float, default=0.5, help='TS loss coefficient')
 parser.add_argument('--model', default='RCAN', help='student model name')
 parser.add_argument('--feature_distilation_type', default="1*SA", type=str, help='feature distilation type')
 parser.add_argument('--feature_loss_used', default=1, type=int, help='whether to use feature loss')
-parser.add_argument('--feature_loss_type', default="L1", type=str, help='feature loss type')
 parser.add_argument('--features', default="[1,2,3]", type=str, help='features selected')
 parser.add_argument('--teacher', default="[RCAN]", type=str, help='teachers selected')
 parser.add_argument('--student_n_resblocks', type=int, default=6, help='number of residual blocks')
-parser.add_argument('--coef_sloss', default="[1,1,1,1]", type=str, help='the coefficient of feature loss')
-parser.add_argument('--TS', default="S", type=str, help='test teacher or student')
+
 
 
 # RDN hyper-parameters
@@ -87,8 +86,9 @@ parser.add_argument('--reduction', type=int, default=16, help='number of feature
 parser.add_argument('--n_feats', type=int, default=64, help='number of feature maps')
 parser.add_argument('--res_scale', type=float, default=1, help='residual scaling')
 
-
-
+# Testing
+parser.add_argument('--ckp_path', type=str, default='', help='checkpoint path')
+parser.add_argument('--TS', default="S", type=str, help='test teacher or student')
 
 
 args = parser.parse_args()

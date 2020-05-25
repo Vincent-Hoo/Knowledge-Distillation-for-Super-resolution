@@ -1,4 +1,4 @@
-import common
+import models.common as common
 import torch
 import torch.nn as nn
 
@@ -31,14 +31,6 @@ class EDSR(nn.Module):
         m_head = [conv(args.n_colors, n_feats, kernel_size)]
 
         # define body module
-        '''
-        m_body = [
-            common.ResBlock(
-                conv, n_feats, kernel_size, act=act, res_scale=args.res_scale
-            ) for _ in range(n_resblocks)
-        ]
-        '''
-        
         self.block_num = [int(n_resblocks/3), int(2*n_resblocks/3) - int(n_resblocks/3), n_resblocks - int(2*n_resblocks/3)]
 
         m_body1 = [common.ResBlock(conv, n_feats, kernel_size, act=act, res_scale=args.res_scale) for _ in range(self.block_num[0])]
@@ -66,7 +58,6 @@ class EDSR(nn.Module):
         x = self.head(x)
         feature_maps.append(x)
 
-        #res = self.body(x)
         res = self.body1(x)
         feature_maps.append(x)
         res = self.body2(res)
@@ -82,26 +73,8 @@ class EDSR(nn.Module):
 
         return feature_maps, x 
 
-    def load_state_dict_old(self, state_dict, strict=True):
-        own_state = self.state_dict()
-        for name, param in state_dict.items():
-            if name in own_state:
-                if isinstance(param, nn.Parameter):
-                    param = param.data
-                try:
-                    own_state[name].copy_(param)
-                except Exception:
-                    if name.find('tail') == -1:
-                        raise RuntimeError('While copying the parameter named {}, '
-                                           'whose dimensions in the model are {} and '
-                                           'whose dimensions in the checkpoint are {}.'
-                                           .format(name, own_state[name].size(), param.size()))
-            elif strict:
-                if name.find('tail') == -1:
-                    raise KeyError('unexpected key "{}" in state_dict'
-                                   .format(name))
 
-    def load_state_dict(self, state_dict):
+    def load_state_dict_teacher(self, state_dict):
         own_state = self.state_dict()
         tmp = [self.block_num[0], self.block_num[0] + self.block_num[1], self.block_num[0] + self.block_num[1] + self.block_num[2]]
         for name, param in state_dict.items():
