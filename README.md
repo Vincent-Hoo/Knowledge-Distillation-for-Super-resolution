@@ -38,10 +38,10 @@ Unpack the tar file and arrange the data directory as follows. Then change the `
 ${DATA_ROOT}
 |-- DIV2K
 |-- benchmark
-	|-- Set5
-	|-- Set14
-	|-- B100
-	|-- Urban100
+    |-- Set5
+    |-- Set14
+    |-- B100
+    |-- Urban100
 ```
 
 #### Training
