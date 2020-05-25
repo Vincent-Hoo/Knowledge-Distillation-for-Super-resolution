@@ -1,5 +1,5 @@
 cd ../;
-python main.py \
+python train.py \
  --ckp_dir overall_distilation/rcan/SA_x2/ \
  --scale 2 \
  --teacher [RCAN] \

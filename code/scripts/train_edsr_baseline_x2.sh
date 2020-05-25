@@ -1,5 +1,5 @@
 cd ../;
-python main.py \
+python train.py \
  --ckp_dir student_baseline/edsr_baseline/baseline_x2 \
  --scale 2 \
  --teacher [EDSR] \

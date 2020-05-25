@@ -1,5 +1,5 @@
 cd ../;
-python main.py \
+python train.py \
  --ckp_dir overall_distilation/edsr/SA_x8/ \
  --scale 8 \
  --teacher [EDSR] \

@@ -1,5 +1,5 @@
 cd ../;
-python main.py \
+python train.py \
  --ckp_dir student_baseline/rcan_baseline/baseline_x4 \
  --scale 4 \
  --teacher [RCAN] \
