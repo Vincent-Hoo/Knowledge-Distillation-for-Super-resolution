@@ -22,12 +22,20 @@ def batch_similarity(fm):
     return normalized_Q
 
 def FSP(fm1, fm2):
-    fm1 = fm1.view(fm1.size(0), fm1.size(1), -1)
-    fm2 = fm2.view(fm2.size(0), -1, fm2.size(1))
-    res = torch.bmm(fm1, fm2)
-    return res.unsqueeze(1)
+    if fm1.size(2) > fm2.size(2):
+        fm1 = F.adaptive_avg_pool2d(fm1, (fm2.size(2), fm2.size(3)))
 
-def AT(feature_map):
-    fm = torch.sum(torch.pow(feature_map, 2), 1).unsqueeze(1)
-    fm = fm / torch.sum(fm, [2,3]).unsqueeze(2).unsqueeze(3)
-    return fm
+    fm1 = fm1.view(fm1.size(0), fm1.size(1), -1)
+    fm2 = fm2.view(fm2.size(0), fm2.size(1), -1).transpose(1,2)
+
+    fsp = torch.bmm(fm1, fm2) / fm1.size(2)
+
+    return fsp
+
+def AT(fm):
+    eps=1e-6
+    am = torch.pow(torch.abs(fm), 2)
+    am = torch.sum(am, dim=1, keepdim=True)
+    norm = torch.norm(am, dim=(2,3), keepdim=True)
+    am = torch.div(am, norm+eps)
+    return am
