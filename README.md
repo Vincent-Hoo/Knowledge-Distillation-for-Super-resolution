@@ -46,7 +46,7 @@ ${DATA_ROOT}
 
 #### Training
 
-Download the teacher model from [here](https://drive.google.com/drive/folders/1qxE2XwBOI2kO0Obi7IC1mYzkfgTyeY61) and place it into folder `teacher_checkpoint`. 
+Download the teacher model from [here](https://drive.google.com/drive/folders/1qxE2XwBOI2kO0Obi7IC1mYzkfgTyeY61?usp=sharing) and place it into folder `teacher_checkpoint`. 
 
 ```sh
 python train.py --ckp_dir overall_distilation/rcan/SA_x4/ --scale 4 --teacher [RCAN] --model RCAN --alpha 0.5 --feature_loss_used 1 --feature_distilation_type 10*SA --features [1,2,3] --epochs 200 --save_results --chop --patch_size 192
@@ -56,7 +56,7 @@ More training scripts can be seen in `code/scripts`.
 
 #### Testing
 
-Download the distilled model of RCANx4 from [here](https://drive.google.com/drive/folders/13df3iuOcoKZXr-3tIqWt8K_4hyVWfK5d) and test the result. 
+Download the distilled model of RCANx4 from [here](https://drive.google.com/drive/folders/13df3iuOcoKZXr-3tIqWt8K_4hyVWfK5d?usp=sharing) and test the result. 
 
 ```sh
 python test.py --ckp_path <checkpoint path> --TS S --scale 4 --model RCAN --n_resgroups 10 --n_resblocks 6
