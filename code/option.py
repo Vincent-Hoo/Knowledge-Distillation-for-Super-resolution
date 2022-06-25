@@ -11,7 +11,7 @@ parser.add_argument('--n_threads', type=int, default=6, help='number of threads 
 
 
 # Dataset Setting
-parser.add_argument('--dir_data', type=str, default='/data/dataset/dataset/sr_dataset', help='dataset directory')
+parser.add_argument('--dir_data', type=str, default='/data/lvyalei/dataset/', help='dataset directory')
 parser.add_argument('--data_train', type=str, default='DIV2K', help='train dataset name')
 parser.add_argument('--data_test', type=str, default='Set5+Set14+B100+Urban100', help='test dataset name')
 parser.add_argument('--data_range', type=str, default='1-800/801-810', help='train/test data range')
@@ -66,7 +66,10 @@ parser.add_argument('--feature_loss_used', default=1, type=int, help='whether to
 parser.add_argument('--features', default="[1,2,3]", type=str, help='features selected')
 parser.add_argument('--teacher', default="[RCAN]", type=str, help='teachers selected')
 parser.add_argument('--student_n_resblocks', type=int, default=6, help='number of residual blocks')
-
+parser.add_argument('--pool_size', default=1, type=int, help='pooling layer size')
+parser.add_argument('--pool_type', default='max', type=str, help='pooling layer type')
+parser.add_argument('--P', default=2, type=int, help='Taylor series order')
+parser.add_argument('--rbf_gamma', default=5, type=int, help='rbf variance')
 
 
 # RDN hyper-parameters

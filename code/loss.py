@@ -82,7 +82,7 @@ class Loss(nn.modules.loss._Loss):
             assert(len(student_fms) == len(self.feature_loss_module))
             
             for i in range(len(self.feature_loss_module)):   
-                feature_loss = self.feature_loss_module[i](student_fms[i], teacher_fms[i])
+                feature_loss = self.feature_loss_module[i](student_fms[i], teacher_fms[i]) * self.loss[2+i]['weight']
                 self.log[-1, 2 + i] += feature_loss.item()
                 loss_sum += feature_loss
   

@@ -11,8 +11,7 @@ from models import *
 from loss import *
 import utility
 import math
-from feature_transformation import spatial_similarity, channel_similarity, batch_similarity, FSP, AT
-
+from feature_transformation import pooled_spatial_similarity, spatial_similarity, channel_similarity, batch_similarity, FSP, AT, MMD, gaussian_rbf
 
 torch.manual_seed(100)
 torch.cuda.manual_seed(100)
@@ -179,25 +178,36 @@ def train(epoch):
         aggregated_teacher_fms = []
         
         if args.feature_loss_used == 1:	
-            if 'SA' in args.feature_distilation_type:
-                aggregated_student_fms.append([spatial_similarity(fm) for fm in student_fms])
-                aggregated_teacher_fms.append([spatial_similarity(fm) for fm in teacher_fms])
-            if 'CA' in args.feature_distilation_type:
-                aggregated_student_fms.append([channel_similarity(fm) for fm in student_fms])
-                aggregated_teacher_fms.append([channel_similarity(fm) for fm in teacher_fms])
-            if 'IA' in args.feature_distilation_type:
-                aggregated_student_fms.append([batch_similarity(fm) for fm in student_fms])
-                aggregated_teacher_fms.append([batch_similarity(fm) for fm in teacher_fms])
-            if 'FSP' in args.feature_distilation_type:
-                aggregated_student_fms.append([FSP(student_fms[i], student_fms[i+1]) for i in range(len(student_fms) - 1)])
-                aggregated_teacher_fms.append([FSP(teacher_fms[i], teacher_fms[i+1]) for i in range(len(teacher_fms) - 1)])
-            if 'AT' in args.feature_distilation_type:
-                aggregated_student_fms.append([AT(fm) for fm in student_fms])
-                aggregated_teacher_fms.append([AT(fm) for fm in teacher_fms])
-            if 'fitnet' in args.feature_distilation_type:
-                aggregated_student_fms.append([fm for fm in student_fms])
-                aggregated_teacher_fms.append([fm for fm in teacher_fms])
+            for distillation_type in args.feature_distilation_type.split('+'):
+                if 'PSA' in distillation_type:
+                    aggregated_student_fms.append([pooled_spatial_similarity(fm, args.pool_size, args.pool_type) for fm in student_fms])
+                    aggregated_teacher_fms.append([pooled_spatial_similarity(fm, args.pool_size, args.pool_type) for fm in teacher_fms])
+                elif 'MMD' in distillation_type:
+                    aggregated_student_fms.append([MMD(fm, args.pool_size, args.pool_type) for fm in student_fms])
+                    aggregated_teacher_fms.append([MMD(fm, args.pool_size, args.pool_type) for fm in teacher_fms])
+                elif 'RBF' in distillation_type:
+                    aggregated_student_fms.append([gaussian_rbf(fm, args.pool_size, args.P, args.rbf_gamma, args.pool_type) for fm in student_fms])
+                    aggregated_teacher_fms.append([gaussian_rbf(fm, args.pool_size, args.P, args.rbf_gamma, args.pool_type) for fm in teacher_fms])
+                elif 'SA' in distillation_type:
+                    aggregated_student_fms.append([spatial_similarity(fm) for fm in student_fms])
+                    aggregated_teacher_fms.append([spatial_similarity(fm) for fm in teacher_fms])
+                elif 'CA' in distillation_type:
+                    aggregated_student_fms.append([channel_similarity(fm) for fm in student_fms])
+                    aggregated_teacher_fms.append([channel_similarity(fm) for fm in teacher_fms])
+                elif 'IA' in distillation_type:
+                    aggregated_student_fms.append([batch_similarity(fm) for fm in student_fms])
+                    aggregated_teacher_fms.append([batch_similarity(fm) for fm in teacher_fms])
+                elif 'FSP' in distillation_type:
+                    aggregated_student_fms.append([FSP(student_fms[i], student_fms[i+1]) for i in range(len(student_fms) - 1)])
+                    aggregated_teacher_fms.append([FSP(teacher_fms[i], teacher_fms[i+1]) for i in range(len(teacher_fms) - 1)])
+                elif 'AT' in distillation_type:
+                    aggregated_student_fms.append([AT(fm) for fm in student_fms])
+                    aggregated_teacher_fms.append([AT(fm) for fm in teacher_fms])
+                elif 'fitnet' in distillation_type:
+                    aggregated_student_fms.append([fm for fm in student_fms])
+                    aggregated_teacher_fms.append([fm for fm in teacher_fms])
         
+        # print(student_fms[0].shape, aggregated_student_fms[0][0].shape)
         total_loss = criterion(student_sr, teacher_sr, hr, aggregated_student_fms, aggregated_teacher_fms)
             
         total_loss.backward()
