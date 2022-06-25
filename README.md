@@ -30,7 +30,7 @@ Here is the quantitative results (PSNR and SSIM) of RCAN and SAN with and w/o FA
 
 #### Data Preparation
 
-We use [DIV2K](http://people.ee.ethz.ch/~timofter/publications/Agustsson-CVPRW-2017.pdf) dataset as training set which you can download from [here](cv.snu.ac.kr/research/EDSR/DIV2K.tar) and use four benchmark dataset (Set5, Set14, B100, Urban100) as testing set which you can down from [here](cv.snu.ac.kr/research/EDSR/benchmark.tar).
+We use [DIV2K](http://people.ee.ethz.ch/~timofter/publications/Agustsson-CVPRW-2017.pdf) dataset as training set which you can download from [here](https://cv.snu.ac.kr/research/EDSR/DIV2K.tar) and use four benchmark dataset (Set5, Set14, B100, Urban100) as testing set which you can down from [here](https://cv.snu.ac.kr/research/EDSR/benchmark.tar).
 
 Unpack the tar file and arrange the data directory as follows. Then change the `dir_data` argument in the `code/option.py` to `{DATA_ROOT}`.
 
